@@ -23,7 +23,7 @@ pub fn parse_html(document: &str) -> Vec<String> {
 }
 
 pub fn url_normalizer(origin: &str, url: &str) -> Result<String, CrawlerError> {
-    // Try to parse as absolute URL, otherwise resolve relative to host
+    // Resolve URL (absolute or relative)
     let mut parsed_url = match Url::parse(url) {
         Ok(u) => u,
         Err(url::ParseError::RelativeUrlWithoutBase) => {
@@ -34,36 +34,80 @@ pub fn url_normalizer(origin: &str, url: &str) -> Result<String, CrawlerError> {
     };
 
     // Lowercase scheme and host
-    let scheme = parsed_url.scheme().to_ascii_lowercase();
-    parsed_url.set_scheme(&scheme).ok();
+    let _ = parsed_url.set_scheme(&parsed_url.scheme().to_ascii_lowercase());
     if let Some(host) = parsed_url.host_str() {
-        parsed_url.set_host(Some(&host.to_ascii_lowercase())).ok();
+        let _ = parsed_url.set_host(Some(&host.to_ascii_lowercase()));
     }
 
     // Remove default ports
-    let is_default_port = match parsed_url.scheme() {
-        "http" => parsed_url.port() == Some(80),
-        "https" => parsed_url.port() == Some(443),
-        _ => false,
-    };
-    if is_default_port {
+    let default_port = matches!(
+        (parsed_url.scheme(), parsed_url.port()),
+        ("http", Some(80)) | ("https", Some(443))
+    );
+    if default_port {
         parsed_url.set_port(None).ok();
     }
 
     // Remove fragment
     parsed_url.set_fragment(None);
 
-    // Remove trailing slash (but not for root path)
-    if let Some(mut path) = Some(parsed_url.path().to_string())
-        && path.ends_with('/')
-        && path != "/"
+    // Normalize path (remove trailing slashes except root)
+    if let Some(path) = Some(parsed_url.path().to_string())
+        && path.len() > 1
     {
-        path.pop();
-        while path.ends_with('/') && path != "/" {
-            path.pop();
-        }
-        parsed_url.set_path(&path);
+        let trimmed = path.trim_end_matches('/');
+        parsed_url.set_path(if trimmed.is_empty() { "/" } else { trimmed });
     }
 
-    Ok(parsed_url.to_string())
+    // Remove trailing slash on root URL
+    let mut normalized = parsed_url.to_string();
+    if normalized.ends_with('/') && parsed_url.path() == "/" {
+        normalized.pop();
+    }
+
+    Ok(normalized)
+}
+
+#[cfg(test)]
+mod url_normalizer_tests {
+    use super::*;
+    const ORIGIN: &str = "https://example.com";
+
+    #[test]
+    fn should_remove_trailing_slash() {
+        let dirty_url = format!("{ORIGIN}/path/");
+
+        let normalized_url = url_normalizer(ORIGIN, &dirty_url).expect("Should not fail");
+
+        assert_eq!(format!("{ORIGIN}/path"), normalized_url)
+    }
+
+    #[test]
+    fn should_remove_fragment() {
+        let dirty_url = "#comments";
+
+        let normalized_url = url_normalizer(ORIGIN, dirty_url).expect("Should not fail");
+
+        assert_eq!(ORIGIN, normalized_url)
+    }
+
+    #[test]
+    fn should_resolve_absolute_path() {
+        let dirty_url = "/about";
+
+        let normalized_url = url_normalizer(ORIGIN, dirty_url).expect("Should not fail");
+
+        assert_eq!(format!("{ORIGIN}/about"), normalized_url)
+    }
+
+    // should remove default port
+    #[test]
+    fn should_remove_default_port() {
+        let url_with_port = "https://example.com:443";
+        let dirty_url = "/port";
+
+        let normalized_url = url_normalizer(url_with_port, dirty_url).expect("Should not fail");
+
+        assert_eq!(format!("{ORIGIN}/port"), normalized_url)
+    }
 }
