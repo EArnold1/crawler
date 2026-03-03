@@ -10,6 +10,7 @@ async fn main() -> Result<(), CrawlerError> {
             "https://www.rust-lang.org/".into(),
             "https://www.rust-lang.org/".into(),
             "https://github.com/EArnold1/crawler".into(),
+            "https://medium.com/@datajournal/best-rust-html-parsers-c11cb68a503f".into(),
         ])
         .await;
 

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::services::queue::{CrawlTask, Queue};
+use crate::services::queue::Queue;
 
 // TODO: Implement a proper builder pattern for Manager to allow more flexible configuration
 
@@ -17,7 +17,7 @@ impl Manager {
 
     pub async fn run(&self, seeds: Vec<String>) {
         for url in seeds {
-            self.queue.enqueue(CrawlTask { url, depth: 0 }).await;
+            self.queue.enqueue(url).await;
         }
 
         // Keep alive
