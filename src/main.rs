@@ -1,13 +1,17 @@
-use crawler::{error::CrawlerError, manager::ManagerBuilder};
+use crawler::{error::CrawlerError, services::manager::Manager};
 
 #[tokio::main]
 async fn main() -> Result<(), CrawlerError> {
-    let mut manager =
-        ManagerBuilder::new(vec!["https://rust-unofficial.github.io/patterns/".into()])
-            .set_max_depth(20)
-            .build();
+    let manager = Manager::new(20);
 
-    manager.run().await?;
+    manager
+        .run(vec![
+            "https://rust-unofficial.github.io/patterns/".into(),
+            "https://www.rust-lang.org/".into(),
+            "https://www.rust-lang.org/".into(),
+            "https://github.com/EArnold1/crawler".into(),
+        ])
+        .await;
 
     Ok(())
 }

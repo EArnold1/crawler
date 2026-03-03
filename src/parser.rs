@@ -22,6 +22,21 @@ pub fn parse_html(document: &str) -> Vec<String> {
     urls
 }
 
+pub fn extract_host(url: &str) -> Option<String> {
+    // TODO: handle url parsing error
+    Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(|host| host.to_string()))
+}
+
+pub fn hash(host: &String) -> usize {
+    let data = blake3::hash(host.as_bytes());
+
+    data.as_bytes()
+        .iter()
+        .fold(0, |acc, b| acc.wrapping_add(*b as usize))
+}
+
 pub fn url_normalizer(origin: &str, url: &str) -> Result<String, CrawlerError> {
     // Resolve URL (absolute or relative)
     let mut parsed_url = match Url::parse(url) {
@@ -50,6 +65,8 @@ pub fn url_normalizer(origin: &str, url: &str) -> Result<String, CrawlerError> {
 
     // Remove fragment
     parsed_url.set_fragment(None);
+
+    // TODO: Remove query params like "?utm_source"
 
     // Normalize path (remove trailing slashes except root)
     if let Some(path) = Some(parsed_url.path().to_string())
