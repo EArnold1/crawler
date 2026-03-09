@@ -1,8 +1,8 @@
-use crawler::{error::CrawlerError, services::manager::Manager};
+use crawler::{error::CrawlerError, services::manager::ManagerBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), CrawlerError> {
-    let manager = Manager::new(20);
+    let manager = ManagerBuilder::new().max_depth(10).max_workers(10).build();
 
     manager
         .run(vec![

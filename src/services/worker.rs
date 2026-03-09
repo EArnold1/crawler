@@ -21,7 +21,9 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
         let mut last_access: HashMap<String, Instant> = HashMap::new();
 
         while let Some(url) = rx.recv().await {
+            println!("Depth: {}, id: {}", queue.depth(), id); // TODO: remove
             if queue.depth() >= max_depth {
+                // TODO: implement a way to shutdown the worker
                 continue;
             }
 

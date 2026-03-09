@@ -10,20 +10,20 @@ use crate::{
     services::worker::spawn_worker,
 };
 
-const NUM_WORKERS: usize = 5;
-
 pub struct Queue {
     workers: Arc<Vec<Sender<String>>>,
     depth: u8,                            // Track depth
     visited: Arc<Mutex<HashSet<String>>>, // Track visited URLs
+    worker_count: usize,
 }
 
 impl Clone for Queue {
     fn clone(&self) -> Self {
         Self {
             workers: Arc::clone(&self.workers),
-            depth: self.depth,
+            depth: self.depth, // This will be recreated for each worker
             visited: Arc::clone(&self.visited),
+            worker_count: self.worker_count,
         }
     }
 }
@@ -32,11 +32,11 @@ impl Clone for Queue {
 // `max_depth`: It is used to limit how deep a crawl should be
 
 impl Queue {
-    pub fn new(max_depth: u8) -> Self {
-        let mut senders = Vec::with_capacity(NUM_WORKERS);
-        let mut receivers = Vec::with_capacity(NUM_WORKERS);
+    pub fn new(max_depth: u8, worker_count: usize) -> Self {
+        let mut senders = Vec::with_capacity(worker_count);
+        let mut receivers = Vec::with_capacity(worker_count);
 
-        for _ in 0..NUM_WORKERS {
+        for _ in 0..worker_count {
             let (tx, rx) = mpsc::channel(500);
             senders.push(tx);
             receivers.push(rx);
@@ -46,6 +46,7 @@ impl Queue {
             workers: Arc::new(senders),
             depth: 0,
             visited: Arc::new(Mutex::new(HashSet::new())),
+            worker_count,
         };
 
         for (id, rx) in receivers.into_iter().enumerate() {
@@ -57,7 +58,7 @@ impl Queue {
 
     pub async fn enqueue(&self, url: String) {
         if let Some(host) = extract_host(&url) {
-            let idx = hash(&host) % NUM_WORKERS;
+            let idx = hash(&host) % self.worker_count;
             if let Err(e) = self.workers[idx].send(url).await {
                 eprintln!("Failed to send task to worker: {}", e);
             }

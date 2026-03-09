@@ -2,28 +2,59 @@ use std::time::Duration;
 
 use crate::services::queue::Queue;
 
-// TODO: Implement a proper builder pattern for Manager to allow more flexible configuration
-
 pub struct Manager {
     queue: Queue,
 }
 
 impl Manager {
-    pub fn new(max_depth: u8) -> Self {
-        Self {
-            queue: Queue::new(max_depth),
-        }
-    }
-
-    pub async fn run(&self, seeds: Vec<String>) {
+    pub async fn run<I>(&self, seeds: I)
+    where
+        I: IntoIterator<Item = String>,
+    {
         for url in seeds {
             self.queue.enqueue(url).await;
         }
 
         // Keep alive
-        // Come up with a better way for this
+        // TODO: Come up with a better way for this
         loop {
-            std::thread::sleep(Duration::from_secs(60));
+            tokio::time::sleep(Duration::from_secs(60)).await;
+        }
+    }
+}
+
+pub struct ManagerBuilder {
+    max_depth: u8,
+    worker_count: usize, // max size should be 10
+}
+
+impl Default for ManagerBuilder {
+    fn default() -> Self {
+        Self {
+            max_depth: 3,
+            worker_count: 5,
+        }
+    }
+}
+
+impl ManagerBuilder {
+    pub fn new() -> Self {
+        ManagerBuilder::default()
+    }
+
+    pub fn max_depth(mut self, depth: u8) -> Self {
+        self.max_depth = depth;
+        self
+    }
+
+    pub fn max_workers(mut self, workers: usize) -> Self {
+        self.worker_count = workers.min(10);
+        self
+    }
+
+    pub fn build(self) -> Manager {
+        Manager {
+            queue: Queue::new(self.max_depth, self.worker_count),
         }
     }
 }

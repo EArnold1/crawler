@@ -30,6 +30,7 @@ pub fn extract_host(url: &str) -> Option<String> {
 }
 
 pub fn hash(host: &String) -> usize {
+    // TODO: Optimize hash function to reduce collisions
     let data = blake3::hash(host.as_bytes());
 
     data.as_bytes()
