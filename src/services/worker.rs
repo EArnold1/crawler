@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    thread,
     time::{Duration, Instant},
 };
 
@@ -32,7 +31,7 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
                 .ascii_serialization();
 
             if let Some(host) = extract_host(&url) {
-                enforce_politeness(&mut last_access, &host);
+                enforce_politeness(&mut last_access, &host).await;
 
                 if let Ok(document) = fetch_page(&url).await {
                     println!("[Worker {id}] Visited {}", url);
@@ -55,11 +54,11 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
     });
 }
 
-fn enforce_politeness(last_access: &mut HashMap<String, Instant>, host: &str) {
+async fn enforce_politeness(last_access: &mut HashMap<String, Instant>, host: &str) {
     if let Some(last_time) = last_access.get(host) {
         let elapsed = last_time.elapsed();
         if elapsed < POLITENESS_DELAY {
-            thread::sleep(POLITENESS_DELAY - elapsed);
+            tokio::time::sleep(POLITENESS_DELAY - elapsed).await;
         }
     }
 }

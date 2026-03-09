@@ -58,7 +58,7 @@ impl Queue {
     pub async fn enqueue(&self, url: String) {
         if let Some(host) = extract_host(&url) {
             let idx = hash(&host) % NUM_WORKERS;
-            if let Err(e) = self.workers[idx].send(url.clone()).await {
+            if let Err(e) = self.workers[idx].send(url).await {
                 eprintln!("Failed to send task to worker: {}", e);
             }
         }
