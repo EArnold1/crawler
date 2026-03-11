@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::mpsc::{self, Sender};
 
 use crate::{
-    parser::{extract_host, hash},
+    parser::{extract_host, hasher},
     services::worker::spawn_worker,
 };
 
@@ -58,7 +58,7 @@ impl Queue {
 
     pub async fn enqueue(&self, url: String) {
         if let Some(host) = extract_host(&url) {
-            let idx = hash(&host) % self.worker_count;
+            let idx = hasher::division_hash(&host, self.worker_count);
             if let Err(e) = self.workers[idx].send(url).await {
                 eprintln!("Failed to send task to worker: {}", e);
             }

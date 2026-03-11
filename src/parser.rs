@@ -29,13 +29,25 @@ pub fn extract_host(url: &str) -> Option<String> {
         .and_then(|u| u.host_str().map(|host| host.to_string()))
 }
 
-pub fn hash(host: &String) -> usize {
-    // TODO: Optimize hash function to reduce collisions
-    let data = blake3::hash(host.as_bytes());
+pub mod hasher {
+    // This uses polynomial hash to get the key
+    fn convert_key(value: &str) -> u64 {
+        let base: u64 = 31;
+        let mut hash: u64 = 0;
 
-    data.as_bytes()
-        .iter()
-        .fold(0, |acc, b| acc.wrapping_add(*b as usize))
+        for c in value.chars() {
+            let v = c as u64;
+            hash = hash.wrapping_mul(base).wrapping_add(v);
+        }
+
+        hash
+    }
+
+    pub fn division_hash(input: &str, hash_size: usize) -> usize {
+        let key = convert_key(input);
+
+        (key % (hash_size as u64)) as usize
+    }
 }
 
 pub fn url_normalizer(origin: &str, url: &str) -> Result<String, CrawlerError> {
