@@ -23,7 +23,6 @@ pub fn parse_html(document: &str) -> Vec<String> {
 }
 
 pub fn extract_host(url: &str) -> Option<String> {
-    // TODO: handle url parsing error
     Url::parse(url)
         .ok()
         .and_then(|u| u.host_str().map(|host| host.to_string()))

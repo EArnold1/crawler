@@ -37,11 +37,19 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
 
                 if let Ok(document) = fetch_page(&url).await {
                     println!("[Worker {id}] Visited {}", url);
+
+                    let content_hash = blake3::hash(document.as_bytes());
+
+                    if queue.is_content_seen(&content_hash) {
+                        continue;
+                    }
+
+                    queue.mark_content(content_hash);
+
                     queue.increment_depth();
                     queue.mark_visited(url);
 
                     for new_url in parse_html(&document) {
-                        // TODO: Implement seen URL + Content hash check to avoid duplicates
                         if let Ok(normalized_url) = url_normalizer(&origin, &new_url)
                             && !queue.is_visited(&normalized_url)
                         {

@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use blake3::Hash;
 use tokio::sync::mpsc::{self, Sender};
 
 use crate::{
@@ -12,8 +13,9 @@ use crate::{
 
 pub struct Queue {
     workers: Arc<Vec<Sender<String>>>,
-    depth: u8,                            // Track depth
-    visited: Arc<Mutex<HashSet<String>>>, // Track visited URLs
+    depth: u8,                                // Track depth
+    visited: Arc<Mutex<HashSet<String>>>,     // Track visited URLs
+    seen_contents: Arc<Mutex<HashSet<Hash>>>, // Track seen contents
     worker_count: usize,
 }
 
@@ -23,6 +25,7 @@ impl Clone for Queue {
             workers: Arc::clone(&self.workers),
             depth: self.depth, // This will be recreated for each worker
             visited: Arc::clone(&self.visited),
+            seen_contents: Arc::clone(&self.seen_contents),
             worker_count: self.worker_count,
         }
     }
@@ -46,6 +49,7 @@ impl Queue {
             workers: Arc::new(senders),
             depth: 0,
             visited: Arc::new(Mutex::new(HashSet::new())),
+            seen_contents: Arc::new(Mutex::new(HashSet::new())),
             worker_count,
         };
 
@@ -81,5 +85,15 @@ impl Queue {
     pub fn is_visited(&self, url: &String) -> bool {
         let visited = self.visited.lock().unwrap();
         visited.contains(url)
+    }
+
+    pub fn mark_content(&self, content: Hash) {
+        let mut visited = self.seen_contents.lock().unwrap();
+        visited.insert(content);
+    }
+
+    pub fn is_content_seen(&self, content: &Hash) -> bool {
+        let visited = self.seen_contents.lock().unwrap();
+        visited.contains(content)
     }
 }
