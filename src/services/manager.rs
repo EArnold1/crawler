@@ -12,7 +12,7 @@ impl Manager {
         I: IntoIterator<Item = String>,
     {
         for url in seeds {
-            self.queue.enqueue(url).await;
+            self.queue.enqueue(url, 0u8).await;
         }
 
         // Keep alive

@@ -1,52 +1,11 @@
-use scraper::{Html, Selector};
 use url::Url;
 
 use crate::error::CrawlerError;
-
-pub fn parse_html(document: &str) -> Vec<String> {
-    let fragment = Html::parse_fragment(document);
-    let selector = Selector::parse("a").unwrap();
-
-    let mut urls = Vec::new();
-
-    for element in fragment.select(&selector) {
-        if let Some(url) = element.attr("href") {
-            if url.contains("mailto:") || url.contains("tel") {
-                continue;
-            }
-
-            urls.push(url.to_owned());
-        }
-    }
-
-    urls
-}
 
 pub fn extract_host(url: &str) -> Option<String> {
     Url::parse(url)
         .ok()
         .and_then(|u| u.host_str().map(|host| host.to_string()))
-}
-
-pub mod hasher {
-    // This uses polynomial hash to get the key
-    fn convert_key(value: &str) -> u64 {
-        let base: u64 = 31;
-        let mut hash: u64 = 0;
-
-        for c in value.chars() {
-            let v = c as u64;
-            hash = hash.wrapping_mul(base).wrapping_add(v);
-        }
-
-        hash
-    }
-
-    pub fn division_hash(input: &str, hash_size: usize) -> usize {
-        let key = convert_key(input);
-
-        (key % (hash_size as u64)) as usize
-    }
 }
 
 pub fn url_normalizer(origin: &str, url: &str) -> Result<String, CrawlerError> {
