@@ -17,19 +17,18 @@ use crate::{
     services::queue::Queue,
 };
 
-// TODO: Implement worker pool with async tasks and proper shutdown mechanism
+// TODO: Implement worker with proper shutdown
 
-pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_depth: u8) {
+pub fn spawn_worker(id: usize, mut rx: Receiver<(String, u8)>, queue: Queue, max_depth: u8) {
     tokio::spawn(async move {
         let mut last_access: HashMap<String, Instant> = HashMap::new();
 
-        while let Some(url) = rx.recv().await {
-            println!("Depth: {}, id: {}", queue.depth(), id); // TODO: remove
-            if queue.depth() >= max_depth {
-                // TODO: implement a way to shutdown the worker
-                continue;
+        while let Some((url, depth)) = rx.recv().await {
+            // Using per-url depth tracking to enforce max_depth
+            if depth > max_depth {
+                println!("[Info]: Skipped {} due to max depth limit", url);
+                continue; // Skip URLs beyond max depth
             }
-
             let origin = Url::parse(&url)
                 .expect("URL should be valid")
                 .origin()
@@ -49,14 +48,13 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
 
                     queue.mark_content(content_hash);
 
-                    queue.increment_depth();
                     queue.mark_visited(url);
 
                     for new_url in parse_html(&content) {
                         if let Ok(normalized_url) = url_normalizer(&origin, &new_url)
                             && !queue.is_visited(&normalized_url)
                         {
-                            queue.enqueue(normalized_url).await;
+                            queue.enqueue(normalized_url, depth + 1).await;
                         }
                     }
                 }

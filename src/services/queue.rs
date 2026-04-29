@@ -13,10 +13,8 @@ use crate::{
 };
 
 pub struct Queue {
-    workers: Arc<Vec<Sender<String>>>,
-    depth: u8,                            // Track depth
+    workers: Arc<Vec<Sender<(String, u8)>>>,
     visited: Arc<Mutex<HashSet<String>>>, // Track visited URLs
-    // seen_contents removed; use deduplicator instead
     worker_count: usize,
     deduplicator: Arc<dyn ContentDeduplicator>, // Content deduplicator
 }
@@ -25,7 +23,6 @@ impl Clone for Queue {
     fn clone(&self) -> Self {
         Self {
             workers: Arc::clone(&self.workers),
-            depth: self.depth, // This will be recreated for each worker
             visited: Arc::clone(&self.visited),
             worker_count: self.worker_count,
             deduplicator: Arc::clone(&self.deduplicator),
@@ -49,7 +46,6 @@ impl Queue {
 
         let queue = Self {
             workers: Arc::new(senders),
-            depth: 0,
             visited: Arc::new(Mutex::new(HashSet::new())),
             worker_count,
             deduplicator: Arc::new(InMemoryDeduplicator::default()),
@@ -62,21 +58,13 @@ impl Queue {
         queue
     }
 
-    pub async fn enqueue(&self, url: String) {
+    pub async fn enqueue(&self, url: String, depth: u8) {
         if let Some(host) = extract_host(&url) {
             let idx = hasher::division_hash(&host, self.worker_count);
-            if let Err(e) = self.workers[idx].send(url).await {
+            if let Err(e) = self.workers[idx].send((url, depth)).await {
                 eprintln!("Failed to send task to worker: {}", e);
             }
         }
-    }
-
-    pub fn increment_depth(&mut self) {
-        self.depth += 1;
-    }
-
-    pub fn depth(&self) -> u8 {
-        self.depth
     }
 
     pub fn mark_visited(&self, url: String) {
