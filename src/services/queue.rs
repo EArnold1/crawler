@@ -3,20 +3,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use blake3::Hash;
 use tokio::sync::mpsc::{self, Sender};
 
 use crate::{
-    parser::{extract_host, hasher},
+    deduplicator::{ContentDeduplicator, InMemoryDeduplicator},
+    parser::url::extract_host,
     services::worker::spawn_worker,
+    utils::hasher,
 };
 
 pub struct Queue {
     workers: Arc<Vec<Sender<String>>>,
-    depth: u8,                                // Track depth
-    visited: Arc<Mutex<HashSet<String>>>,     // Track visited URLs
-    seen_contents: Arc<Mutex<HashSet<Hash>>>, // Track seen contents
+    depth: u8,                            // Track depth
+    visited: Arc<Mutex<HashSet<String>>>, // Track visited URLs
+    // seen_contents removed; use deduplicator instead
     worker_count: usize,
+    deduplicator: Arc<dyn ContentDeduplicator>, // Content deduplicator
 }
 
 impl Clone for Queue {
@@ -25,8 +27,8 @@ impl Clone for Queue {
             workers: Arc::clone(&self.workers),
             depth: self.depth, // This will be recreated for each worker
             visited: Arc::clone(&self.visited),
-            seen_contents: Arc::clone(&self.seen_contents),
             worker_count: self.worker_count,
+            deduplicator: Arc::clone(&self.deduplicator),
         }
     }
 }
@@ -49,8 +51,8 @@ impl Queue {
             workers: Arc::new(senders),
             depth: 0,
             visited: Arc::new(Mutex::new(HashSet::new())),
-            seen_contents: Arc::new(Mutex::new(HashSet::new())),
             worker_count,
+            deduplicator: Arc::new(InMemoryDeduplicator::default()),
         };
 
         for (id, rx) in receivers.into_iter().enumerate() {
@@ -87,13 +89,13 @@ impl Queue {
         visited.contains(url)
     }
 
-    pub fn mark_content(&self, content: Hash) {
-        let mut visited = self.seen_contents.lock().unwrap();
-        visited.insert(content);
+    /// Mark content as seen using the deduplicator
+    pub fn mark_content(&self, content_hash: Vec<u8>) {
+        self.deduplicator.mark_seen(content_hash);
     }
 
-    pub fn is_content_seen(&self, content: &Hash) -> bool {
-        let visited = self.seen_contents.lock().unwrap();
-        visited.contains(content)
+    /// Check if content has been seen using the deduplicator
+    pub fn is_content_seen(&self, content_hash: &[u8]) -> bool {
+        self.deduplicator.is_seen(content_hash)
     }
 }

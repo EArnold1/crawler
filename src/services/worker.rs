@@ -9,8 +9,11 @@ use tokio::sync::mpsc::Receiver;
 use url::Url;
 
 use crate::{
-    fetcher::fetch_page,
-    parser::{extract_host, parse_html, url_normalizer},
+    fetcher::{client::fetch_url, page::Page},
+    parser::{
+        html::parse_html,
+        url::{extract_host, url_normalizer},
+    },
     services::queue::Queue,
 };
 
@@ -35,10 +38,10 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
             if let Some(host) = extract_host(&url) {
                 enforce_politeness(&mut last_access, &host).await;
 
-                if let Ok(document) = fetch_page(&url).await {
+                if let Ok(Page { content, .. }) = fetch_url(&url).await {
                     println!("[Worker {id}] Visited {}", url);
 
-                    let content_hash = blake3::hash(document.as_bytes());
+                    let content_hash = blake3::hash(content.as_bytes()).as_bytes().to_vec();
 
                     if queue.is_content_seen(&content_hash) {
                         continue;
@@ -49,7 +52,7 @@ pub fn spawn_worker(id: usize, mut rx: Receiver<String>, mut queue: Queue, max_d
                     queue.increment_depth();
                     queue.mark_visited(url);
 
-                    for new_url in parse_html(&document) {
+                    for new_url in parse_html(&content) {
                         if let Ok(normalized_url) = url_normalizer(&origin, &new_url)
                             && !queue.is_visited(&normalized_url)
                         {
